@@ -176,9 +176,10 @@ func (impl AppServiceImpl) UpdateReleaseStatus(updateStatusRequest *bean.Release
 func (impl AppServiceImpl) UpdateApplicationStatusAndCheckIsHealthy(app v1alpha1.Application) (bool, error) {
 	isHealthy := false
 	repoUrl := app.Spec.Source.RepoURL
-	repoUrl = repoUrl[strings.LastIndex(repoUrl, "/")+1:]
-	appName := strings.ReplaceAll(repoUrl, ".git", "")
-	evnName := strings.ReplaceAll(app.Name, appName+"-", "")
+	repoUrl = repoUrl[strings.LastIndex(repoUrl, "/")+1:]    //d-659-viki-3feb-2.git
+	refChart := strings.ReplaceAll(repoUrl, ".git", "")       //d-659-viki-3feb-2
+	evnName := strings.ReplaceAll(app.Name, refChart+"-", "") //devtron-demo
+	appName := strings.ReplaceAll(app.Name, "-"+evnName, "")
 	impl.logger.Debugw("event received ", "appName", appName, "evnName", evnName, "app", app)
 	dbApp, err := impl.appRepository.FindActiveByName(appName)
 	if err != nil && err != pg.ErrNoRows {
