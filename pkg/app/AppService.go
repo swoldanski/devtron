@@ -177,14 +177,28 @@ func (impl AppServiceImpl) UpdateApplicationStatusAndCheckIsHealthy(app v1alpha1
 	isHealthy := false
 	repoUrl := app.Spec.Source.RepoURL
 	repoUrl = repoUrl[strings.LastIndex(repoUrl, "/")+1:]    //d-659-viki-3feb-2.git
-	refChart := strings.ReplaceAll(repoUrl, ".git", "")       //d-659-viki-3feb-2
-	evnName := strings.ReplaceAll(app.Name, refChart+"-", "") //devtron-demo
-	appName := strings.ReplaceAll(app.Name, "-"+evnName, "")
+	appName := strings.ReplaceAll(repoUrl, ".git", "")       //d-659-viki-3feb-2
+	evnName := strings.ReplaceAll(app.Name, appName+"-", "") //viki-3feb-5-devtron-demo
+	//appName = strings.ReplaceAll(app.Name, "-"+evnName, "")  //viki-3feb-5-devtron-demo
+	impl.logger.Infow("Prefixed testing .", "repoUrl", app.Spec.Source.RepoURL, "appName", appName, "evnName", evnName, "app", app)
 	impl.logger.Debugw("event received ", "appName", appName, "evnName", evnName, "app", app)
 	dbApp, err := impl.appRepository.FindActiveByName(appName)
 	if err != nil && err != pg.ErrNoRows {
 		impl.logger.Errorw("error in fetching app name", "err", err, "appName", appName)
 		return isHealthy, err
+	}
+	if err == pg.ErrNoRows {
+		chart, err := impl.chartRepository.FindByName(appName)
+		if err != nil {
+			impl.logger.Errorw("error in fetching chart", "err", err, "chart", appName)
+			return isHealthy, err
+		}
+		dbApp, err = impl.appRepository.FindById(chart.AppId)
+		if err != nil {
+			impl.logger.Errorw("error in fetching app", "err", err, "app", chart.AppId)
+			return isHealthy, err
+		}
+		evnName = strings.ReplaceAll(app.Name, dbApp.AppName+"-", "")
 	}
 	if dbApp.Id > 0 && dbApp.AppStore == true {
 		impl.logger.Debugw("skipping application status update as this app is chart", "appName", appName)
