@@ -359,6 +359,7 @@ func (impl ChartTemplateServiceImpl) createAndPushToGitChartProxy(appStoreName, 
 	//baseTemplateName  replace whitespace
 	space := regexp.MustCompile(`\s+`)
 	appStoreName = space.ReplaceAllString(appStoreName, "-")
+	appStoreName = fmt.Sprintf("devtron-%s", appStoreName)
 	gitOpsConfigBitbucket, err := impl.gitFactory.gitOpsRepository.GetGitOpsConfigByProvider(BITBUCKET_PROVIDER)
 	if err != nil {
 		if err == pg.ErrNoRows {
