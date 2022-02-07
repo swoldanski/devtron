@@ -780,8 +780,7 @@ func (impl GitHubClient) CommitValues(config *ChartConfig, bitbucketWorkspaceId 
 
 func (impl GitHubClient) GetRepoUrl(projectName string, repoOptions *bitbucket.RepositoryOptions) (repoUrl string, err error) {
 	ctx := context.Background()
-	gitProjectName := fmt.Sprintf("devtron-%s", projectName)
-	repo, _, err := impl.client.Repositories.Get(ctx, impl.org, gitProjectName)
+	repo, _, err := impl.client.Repositories.Get(ctx, impl.org, projectName)
 	if err != nil {
 		return "", err
 	}
