@@ -358,8 +358,8 @@ func (impl ChartTemplateServiceImpl) CreateChartProxy(chartMetaData *chart.Metad
 func (impl ChartTemplateServiceImpl) createAndPushToGitChartProxy(appStoreName, baseTemplateName, version, tmpChartLocation string, envName string, appName string) (chartGitAttribute *ChartGitAttribute, err error) {
 	//baseTemplateName  replace whitespace
 	space := regexp.MustCompile(`\s+`)
-	appStoreName = space.ReplaceAllString(appStoreName, "-")
-	appStoreName = fmt.Sprintf("devtron-%s", appStoreName)
+	gitProjectName := space.ReplaceAllString(appStoreName, "-")
+	gitProjectName = fmt.Sprintf("devtron-%s", gitProjectName)
 	gitOpsConfigBitbucket, err := impl.gitFactory.gitOpsRepository.GetGitOpsConfigByProvider(BITBUCKET_PROVIDER)
 	if err != nil {
 		if err == pg.ErrNoRows {
@@ -370,10 +370,10 @@ func (impl ChartTemplateServiceImpl) createAndPushToGitChartProxy(appStoreName, 
 			return nil, err
 		}
 	}
-	repoUrl, _, detailedError := impl.gitFactory.Client.CreateRepository(appStoreName, "helm chart for "+appStoreName, gitOpsConfigBitbucket.BitBucketWorkspaceId, gitOpsConfigBitbucket.BitBucketProjectKey)
+	repoUrl, _, detailedError := impl.gitFactory.Client.CreateRepository(gitProjectName, "helm chart for "+gitProjectName, gitOpsConfigBitbucket.BitBucketWorkspaceId, gitOpsConfigBitbucket.BitBucketProjectKey)
 	for _, err := range detailedError.StageErrorMap {
 		if err != nil {
-			impl.logger.Errorw("error in creating git project", "name", appStoreName, "err", err)
+			impl.logger.Errorw("error in creating git project", "name", gitProjectName, "err", err)
 			return nil, err
 		}
 	}
@@ -386,7 +386,7 @@ func (impl ChartTemplateServiceImpl) createAndPushToGitChartProxy(appStoreName, 
 			return nil, err
 		}
 	} else {
-		err = impl.GitPull(clonedDir, repoUrl, appStoreName)
+		err = impl.GitPull(clonedDir, repoUrl, gitProjectName)
 		if err != nil {
 			return nil, err
 		}

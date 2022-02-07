@@ -57,7 +57,7 @@ const (
 )
 
 type GitClient interface {
-	CreateRepository(name, description, bitbucketWorkspaceId, bitbucketProjectKey string) (url string, isNew bool, detailedErrorGitOpsConfigActions DetailedErrorGitOpsConfigActions)
+	CreateRepository(projectName, description, bitbucketWorkspaceId, bitbucketProjectKey string) (url string, isNew bool, detailedErrorGitOpsConfigActions DetailedErrorGitOpsConfigActions)
 	CommitValues(config *ChartConfig, bitbucketWorkspaceId string) (commitHash string, err error)
 	GetRepoUrl(projectName string, repoOptions *bitbucket.RepositoryOptions) (repoUrl string, err error)
 	DeleteRepository(name, userName, gitHubOrgName, azureProjectName string, repoOptions *bitbucket.RepositoryOptions) error
@@ -649,19 +649,21 @@ func NewGithubClient(host string, token string, org string, logger *zap.SugaredL
 
 	return GitHubClient{client: client, org: org, logger: logger, gitService: gitService}, err
 }
-func (impl GitHubClient) DeleteRepository(name, userName, gitHubOrgName, azureProjectName string, repoOptions *bitbucket.RepositoryOptions) error {
-	_, err := impl.client.Repositories.Delete(context.Background(), gitHubOrgName, name)
+func (impl GitHubClient) DeleteRepository(projectName, userName, gitHubOrgName, azureProjectName string, repoOptions *bitbucket.RepositoryOptions) error {
+	_, err := impl.client.Repositories.Delete(context.Background(), gitHubOrgName, projectName)
 	if err != nil {
-		impl.logger.Errorw("repo deletion failed for github", "repo", name, "err", err)
+		impl.logger.Errorw("repo deletion failed for github", "repo", projectName, "err", err)
 		return err
 	}
 	return nil
 }
-func (impl GitHubClient) CreateRepository(name, description, bitbucketWorkspaceId, bitbucketProjectKey string) (url string, isNew bool, detailedErrorGitOpsConfigActions DetailedErrorGitOpsConfigActions) {
+
+//projectName = here is the repo name in git
+func (impl GitHubClient) CreateRepository(projectName, description, bitbucketWorkspaceId, bitbucketProjectKey string) (url string, isNew bool, detailedErrorGitOpsConfigActions DetailedErrorGitOpsConfigActions) {
 	detailedErrorGitOpsConfigActions.StageErrorMap = make(map[string]error)
 	ctx := context.Background()
 	repoExists := true
-	url, err := impl.GetRepoUrl(name, nil)
+	url, err := impl.GetRepoUrl(projectName, nil)
 	if err != nil {
 		responseErr, ok := err.(*github.ErrorResponse)
 		if !ok || responseErr.Response.StatusCode != 404 {
@@ -679,47 +681,47 @@ func (impl GitHubClient) CreateRepository(name, description, bitbucketWorkspaceI
 	private := true
 	//	visibility := "private"
 	r, _, err := impl.client.Repositories.Create(ctx, impl.org,
-		&github.Repository{Name: &name,
+		&github.Repository{Name: &projectName,
 			Description: &description,
 			Private:     &private,
 			//			Visibility:  &visibility,
 		})
 	if err != nil {
-		impl.logger.Errorw("error in creating github repo, ", "repo", name, "err", err)
+		impl.logger.Errorw("error in creating github repo, ", "repo", projectName, "err", err)
 		detailedErrorGitOpsConfigActions.StageErrorMap[CreateRepoStage] = err
 		return "", true, detailedErrorGitOpsConfigActions
 	}
 	logger.Infow("github repo created ", "r", r.CloneURL)
 	detailedErrorGitOpsConfigActions.SuccessfulStages = append(detailedErrorGitOpsConfigActions.SuccessfulStages, CreateRepoStage)
 
-	validated, err := impl.ensureProjectAvailabilityOnHttp(name)
+	validated, err := impl.ensureProjectAvailabilityOnHttp(projectName)
 	if err != nil {
-		impl.logger.Errorw("error in ensuring project availability github", "project", name, "err", err)
+		impl.logger.Errorw("error in ensuring project availability github", "project", projectName, "err", err)
 		detailedErrorGitOpsConfigActions.StageErrorMap[CloneHttpStage] = err
 		return *r.CloneURL, true, detailedErrorGitOpsConfigActions
 	}
 	if !validated {
-		detailedErrorGitOpsConfigActions.StageErrorMap[CloneHttpStage] = fmt.Errorf("unable to validate project:%s in given time", name)
+		detailedErrorGitOpsConfigActions.StageErrorMap[CloneHttpStage] = fmt.Errorf("unable to validate project:%s in given time", projectName)
 		return "", true, detailedErrorGitOpsConfigActions
 	}
 	detailedErrorGitOpsConfigActions.SuccessfulStages = append(detailedErrorGitOpsConfigActions.SuccessfulStages, CloneHttpStage)
 
-	_, err = impl.createReadme(name)
+	_, err = impl.createReadme(projectName)
 	if err != nil {
-		impl.logger.Errorw("error in creating readme github", "project", name, "err", err)
+		impl.logger.Errorw("error in creating readme github", "project", projectName, "err", err)
 		detailedErrorGitOpsConfigActions.StageErrorMap[CreateReadmeStage] = err
 		return *r.CloneURL, true, detailedErrorGitOpsConfigActions
 	}
 	detailedErrorGitOpsConfigActions.SuccessfulStages = append(detailedErrorGitOpsConfigActions.SuccessfulStages, CreateReadmeStage)
 
-	validated, err = impl.ensureProjectAvailabilityOnSsh(name, *r.CloneURL)
+	validated, err = impl.ensureProjectAvailabilityOnSsh(projectName, *r.CloneURL)
 	if err != nil {
-		impl.logger.Errorw("error in ensuring project availability github", "project", name, "err", err)
+		impl.logger.Errorw("error in ensuring project availability github", "project", projectName, "err", err)
 		detailedErrorGitOpsConfigActions.StageErrorMap[CloneSshStage] = err
 		return *r.CloneURL, true, detailedErrorGitOpsConfigActions
 	}
 	if !validated {
-		detailedErrorGitOpsConfigActions.StageErrorMap[CloneSshStage] = fmt.Errorf("unable to validate project:%s in given time", name)
+		detailedErrorGitOpsConfigActions.StageErrorMap[CloneSshStage] = fmt.Errorf("unable to validate project:%s in given time", projectName)
 		return "", true, detailedErrorGitOpsConfigActions
 	}
 	detailedErrorGitOpsConfigActions.SuccessfulStages = append(detailedErrorGitOpsConfigActions.SuccessfulStages, CloneSshStage)
@@ -745,9 +747,10 @@ func (impl GitHubClient) createReadme(repoName string) (string, error) {
 func (impl GitHubClient) CommitValues(config *ChartConfig, bitbucketWorkspaceId string) (commitHash string, err error) {
 	branch := "master"
 	path := filepath.Join(config.ChartLocation, config.FileName)
+	gitProjectName := fmt.Sprintf("devtron-%s", config.ChartName)
 	ctx := context.Background()
 	newFile := false
-	fc, _, _, err := impl.client.Repositories.GetContents(ctx, impl.org, config.ChartName, path, &github.RepositoryContentGetOptions{Ref: branch})
+	fc, _, _, err := impl.client.Repositories.GetContents(ctx, impl.org, gitProjectName, path, &github.RepositoryContentGetOptions{Ref: branch})
 	if err != nil {
 		responseErr, ok := err.(*github.ErrorResponse)
 		if !ok || responseErr.Response.StatusCode != 404 {
@@ -767,7 +770,7 @@ func (impl GitHubClient) CommitValues(config *ChartConfig, bitbucketWorkspaceId 
 		SHA:     &currentSHA,
 		Branch:  &branch,
 	}
-	c, _, err := impl.client.Repositories.CreateFile(ctx, impl.org, config.ChartName, path, options)
+	c, _, err := impl.client.Repositories.CreateFile(ctx, impl.org, gitProjectName, path, options)
 	if err != nil {
 		impl.logger.Errorw("error in commit github", "err", err, "config", config)
 		return "", err
@@ -777,7 +780,8 @@ func (impl GitHubClient) CommitValues(config *ChartConfig, bitbucketWorkspaceId 
 
 func (impl GitHubClient) GetRepoUrl(projectName string, repoOptions *bitbucket.RepositoryOptions) (repoUrl string, err error) {
 	ctx := context.Background()
-	repo, _, err := impl.client.Repositories.Get(ctx, impl.org, projectName)
+	gitProjectName := fmt.Sprintf("devtron-%s", projectName)
+	repo, _, err := impl.client.Repositories.Get(ctx, impl.org, gitProjectName)
 	if err != nil {
 		return "", err
 	}
