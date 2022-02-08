@@ -1184,6 +1184,10 @@ func (impl InstalledAppServiceImpl) AppStoreDeployOperationGIT(installAppVersion
 		return nil, nil, err
 	}
 
+	repoName := strings.ReplaceAll(chartGitAttr.RepoUrl, "https://", "")
+	repoNameArr := strings.Split(repoName, "/")
+	repoName = repoNameArr[len(repoName)-1]
+	impl.logger.Infow(">>>>> Repo Name", "repoUrl", chartGitAttr.RepoUrl, "name", repoName)
 	//STEP 3 - update requirements and values
 
 	//update requirements yaml in chart
@@ -1212,6 +1216,7 @@ func (impl InstalledAppServiceImpl) AppStoreDeployOperationGIT(installAppVersion
 		ChartName:      chartMeta.Name,
 		ChartLocation:  argocdAppName,
 		ReleaseMessage: fmt.Sprintf("release-%d-env-%d ", appStoreAppVersion.Id, environment.Id),
+		RepoName:       repoName,
 	}
 	gitOpsConfigBitbucket, err := impl.gitOpsRepository.GetGitOpsConfigByProvider(util.BITBUCKET_PROVIDER)
 	if err != nil {
@@ -1261,6 +1266,7 @@ func (impl InstalledAppServiceImpl) AppStoreDeployOperationGIT(installAppVersion
 		ChartName:      chartMeta.Name,
 		ChartLocation:  argocdAppName,
 		ReleaseMessage: fmt.Sprintf("release-%d-env-%d ", appStoreAppVersion.Id, environment.Id),
+		RepoName:       repoName,
 	}
 	_, err = impl.gitFactory.Client.CommitValues(valuesYaml, gitOpsConfigBitbucket.BitBucketWorkspaceId)
 	if err != nil {

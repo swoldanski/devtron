@@ -26,6 +26,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	bean2 "github.com/devtron-labs/devtron/api/bean"
@@ -478,6 +479,7 @@ type ChartConfig struct {
 	FileName       string //filename
 	FileContent    string
 	ReleaseMessage string
+	RepoName       string
 }
 
 //-------------------- go-git integration -------------------
@@ -663,7 +665,7 @@ func (impl GitHubClient) CreateRepository(projectName, description, bitbucketWor
 	detailedErrorGitOpsConfigActions.StageErrorMap = make(map[string]error)
 	ctx := context.Background()
 	repoExists := true
-	url, err := impl.GetRepoUrl(projectName, nil)
+	url, err := impl.GetRepoUrl(strings.TrimPrefix(projectName, "devtron-"), nil)
 	if err != nil {
 		responseErr, ok := err.(*github.ErrorResponse)
 		if !ok || responseErr.Response.StatusCode != 404 {
@@ -671,7 +673,18 @@ func (impl GitHubClient) CreateRepository(projectName, description, bitbucketWor
 			detailedErrorGitOpsConfigActions.StageErrorMap[GetRepoUrlStage] = err
 			return "", false, detailedErrorGitOpsConfigActions
 		} else {
-			repoExists = false
+			// try for latest version of git repo
+			url, err = impl.GetRepoUrl(projectName, nil)
+			if err != nil {
+				responseErr, ok := err.(*github.ErrorResponse)
+				if !ok || responseErr.Response.StatusCode != 404 {
+					impl.logger.Errorw("error in creating github repo", "err", err)
+					detailedErrorGitOpsConfigActions.StageErrorMap[GetRepoUrlStage] = err
+					return "", false, detailedErrorGitOpsConfigActions
+				} else {
+					repoExists = false
+				}
+			}
 		}
 	}
 	if repoExists {
@@ -747,7 +760,8 @@ func (impl GitHubClient) createReadme(repoName string) (string, error) {
 func (impl GitHubClient) CommitValues(config *ChartConfig, bitbucketWorkspaceId string) (commitHash string, err error) {
 	branch := "master"
 	path := filepath.Join(config.ChartLocation, config.FileName)
-	gitProjectName := fmt.Sprintf("devtron-%s", config.ChartName)
+	//gitProjectName := fmt.Sprintf("devtron-%s", config.ChartName)
+	gitProjectName := config.RepoName
 	ctx := context.Background()
 	newFile := false
 	fc, _, _, err := impl.client.Repositories.GetContents(ctx, impl.org, gitProjectName, path, &github.RepositoryContentGetOptions{Ref: branch})
