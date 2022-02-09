@@ -15,30 +15,29 @@
  *
  */
 
-package appstore
+package app_store
 
 import (
+	app_store_bean "github.com/devtron-labs/devtron/pkg/app-store/bean"
+	app_store_repository "github.com/devtron-labs/devtron/pkg/app-store/repository"
 	"github.com/devtron-labs/devtron/pkg/sql"
-	"time"
-
-	"github.com/devtron-labs/devtron/internal/sql/repository/appstore"
-	"github.com/devtron-labs/devtron/internal/sql/repository/appstore/chartGroup"
 	"go.uber.org/zap"
+	"time"
 )
 
 type ChartGroupServiceImpl struct {
-	chartGroupEntriesRepository     chartGroup.ChartGroupEntriesRepository
-	chartGroupRepository            chartGroup.ChartGroupReposotory
+	chartGroupEntriesRepository     app_store_repository.ChartGroupEntriesRepository
+	chartGroupRepository            app_store_repository.ChartGroupReposotory
 	Logger                          *zap.SugaredLogger
-	chartGroupDeploymentRepository  chartGroup.ChartGroupDeploymentRepository
-	installedAppRepository          appstore.InstalledAppRepository
-	appStoreVersionValuesRepository appstore.AppStoreVersionValuesRepository
+	chartGroupDeploymentRepository  app_store_repository.ChartGroupDeploymentRepository
+	installedAppRepository          app_store_repository.InstalledAppRepository
+	appStoreVersionValuesRepository app_store_repository.AppStoreVersionValuesRepository
 }
 
-func NewChartGroupServiceImpl(chartGroupEntriesRepository chartGroup.ChartGroupEntriesRepository,
-	chartGroupRepository chartGroup.ChartGroupReposotory,
-	Logger *zap.SugaredLogger, chartGroupDeploymentRepository chartGroup.ChartGroupDeploymentRepository,
-	installedAppRepository appstore.InstalledAppRepository, appStoreVersionValuesRepository appstore.AppStoreVersionValuesRepository) *ChartGroupServiceImpl {
+func NewChartGroupServiceImpl(chartGroupEntriesRepository app_store_repository.ChartGroupEntriesRepository,
+	chartGroupRepository app_store_repository.ChartGroupReposotory,
+	Logger *zap.SugaredLogger, chartGroupDeploymentRepository app_store_repository.ChartGroupDeploymentRepository,
+	installedAppRepository app_store_repository.InstalledAppRepository, appStoreVersionValuesRepository app_store_repository.AppStoreVersionValuesRepository) *ChartGroupServiceImpl {
 	return &ChartGroupServiceImpl{
 		chartGroupEntriesRepository:     chartGroupEntriesRepository,
 		chartGroupRepository:            chartGroupRepository,
@@ -104,7 +103,7 @@ type InstalledChart struct {
 
 func (impl *ChartGroupServiceImpl) CreateChartGroup(req *ChartGroupBean) (*ChartGroupBean, error) {
 	impl.Logger.Debugw("chart group create request", "req", req)
-	chartGrouModel := &chartGroup.ChartGroup{
+	chartGrouModel := &app_store_repository.ChartGroup{
 		Name:        req.Name,
 		Description: req.Description,
 		AuditLog: sql.AuditLog{
@@ -125,7 +124,7 @@ func (impl *ChartGroupServiceImpl) CreateChartGroup(req *ChartGroupBean) (*Chart
 
 func (impl *ChartGroupServiceImpl) UpdateChartGroup(req *ChartGroupBean) (*ChartGroupBean, error) {
 	impl.Logger.Debugw("chart group update request", "req", req)
-	chartGrouModel := &chartGroup.ChartGroup{
+	chartGrouModel := &app_store_repository.ChartGroup{
 		Name:        req.Name,
 		Description: req.Description,
 		Id:          req.Id,
@@ -161,7 +160,7 @@ func (impl *ChartGroupServiceImpl) SaveChartGroupEntries(req *ChartGroupBean) (*
 			newEntries = append(newEntries, entryBean)
 		}
 	}
-	var updateEntries []*chartGroup.ChartGroupEntry
+	var updateEntries []*app_store_repository.ChartGroupEntry
 	for _, existingEntry := range group.ChartGroupEntries {
 		if entry, ok := oldEntriesMap[existingEntry.Id]; ok {
 			//update
@@ -176,9 +175,9 @@ func (impl *ChartGroupServiceImpl) SaveChartGroupEntries(req *ChartGroupBean) (*
 		updateEntries = append(updateEntries, existingEntry)
 	}
 
-	var createEntries []*chartGroup.ChartGroupEntry
+	var createEntries []*app_store_repository.ChartGroupEntry
 	for _, entryBean := range newEntries {
-		entry := &chartGroup.ChartGroupEntry{
+		entry := &app_store_repository.ChartGroupEntry{
 			AppStoreValuesVersionId:      entryBean.AppStoreValuesVersionId,
 			AppStoreApplicationVersionId: entryBean.AppStoreApplicationVersionId,
 			ChartGroupId:                 group.Id,
@@ -222,16 +221,16 @@ func (impl *ChartGroupServiceImpl) GetChartGroupWithChartMetaData(chartGroupId i
 	return chartGroupRes, err
 }
 
-func (impl *ChartGroupServiceImpl) charterEntryAdopter(chartGroupEntry *chartGroup.ChartGroupEntry) *ChartGroupEntryBean {
+func (impl *ChartGroupServiceImpl) charterEntryAdopter(chartGroupEntry *app_store_repository.ChartGroupEntry) *ChartGroupEntryBean {
 
 	var referenceType string
 	var valueVersionName string
 	var appStoreValuesChartVersion string
 	if chartGroupEntry.AppStoreValuesVersionId == 0 {
-		referenceType = REFERENCE_TYPE_DEFAULT
+		referenceType = app_store_bean.REFERENCE_TYPE_DEFAULT
 		appStoreValuesChartVersion = chartGroupEntry.AppStoreApplicationVersion.Version
 	} else {
-		referenceType = REFERENCE_TYPE_TEMPLATE
+		referenceType = app_store_bean.REFERENCE_TYPE_TEMPLATE
 		valueVersionName = chartGroupEntry.AppStoreValuesVersion.Name
 		//FIXME: orm join not working.  to quick fix it
 		valuesVersion, err := impl.appStoreVersionValuesRepository.FindById(chartGroupEntry.AppStoreValuesVersionId)
@@ -311,7 +310,7 @@ func (impl *ChartGroupServiceImpl) GetChartGroupWithInstallationDetail(chartGrou
 		impl.Logger.Errorw("error in finding deployment", "chartGroupId", chartGroupId, "err", err)
 		return nil, err
 	}
-	groupDeploymentMap := make(map[string][]*chartGroup.ChartGroupDeployment)
+	groupDeploymentMap := make(map[string][]*app_store_repository.ChartGroupDeployment)
 	for _, deployment := range deployments {
 		groupDeploymentMap[deployment.GroupInstallationId] = append(groupDeploymentMap[deployment.GroupInstallationId], deployment)
 	}
